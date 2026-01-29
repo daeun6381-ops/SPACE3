@@ -105,21 +105,6 @@
         .dark-mode .bg-white { background-color: #262626; border-color: #333; }
         .dark-mode .chat-memo.mine { background-color: #5c5623 !important; color: #fff; }
         .dark-mode .chat-memo.others { background-color: #233e5c !important; color: #fff; }
-
-        /* 로딩 애니메이션 */
-        .loading-spinner {
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top: 3px solid #fff;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
-            display: inline-block;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 overflow-x-hidden min-h-screen">
@@ -243,9 +228,8 @@
                             </div>
                         </div>
                         
-                        <button onclick="uploadPost()" id="upload-btn" class="w-full bg-pink-500 text-white py-5 rounded-2xl font-bold text-lg btn-active transition-all flex items-center justify-center gap-2">
+                        <button onclick="uploadPost()" id="upload-btn" class="w-full bg-pink-500 text-white py-5 rounded-2xl font-bold text-lg btn-active transition-all flex items-center justify-center">
                             <span id="btn-text">기억 업로드</span>
-                            <span id="btn-spinner" class="loading-spinner hidden"></span>
                         </button>
                     </div>
 
@@ -300,16 +284,7 @@
         import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyDDPLecqluEvnmfwUqtaUFHuUReqTkybkc",
-            authDomain: "space1-b521a.firebaseapp.com",
-            projectId: "space1-b521a",
-            storageBucket: "space1-b521a.firebasestorage.app",
-            messagingSenderId: "235223237323",
-            appId: "1:235223237323:web:d5cbf1999654707e65514e",
-            measurementId: "G-5K1ETJG4T6"
-        };
-
+        const firebaseConfig = JSON.parse(__firebase_config);
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
@@ -325,11 +300,11 @@
             if (isAuthInProgress) return;
             isAuthInProgress = true;
             try {
-                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                if (token) {
-                    try { await signInWithCustomToken(auth, token); } 
-                    catch (tokenErr) { await signInAnonymously(auth); }
-                } else { await signInAnonymously(auth); }
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
             } catch (err) {
                 isAuthInProgress = false;
                 setTimeout(authenticate, 2000);
@@ -369,7 +344,6 @@
             }
         });
 
-        // 사진 리사이징 및 압축 함수
         async function compressImage(file) {
             return new Promise((resolve) => {
                 const reader = new FileReader();
@@ -381,20 +355,15 @@
                         const canvas = document.createElement('canvas');
                         let width = img.width;
                         let height = img.height;
-
-                        // 최대 너비 설정 (1200px)
                         const MAX_WIDTH = 1200;
                         if (width > MAX_WIDTH) {
                             height = Math.round((height * MAX_WIDTH) / width);
                             width = MAX_WIDTH;
                         }
-
                         canvas.width = width;
                         canvas.height = height;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, width, height);
-
-                        // JPEG 품질 0.7 정도로 압축하여 Base64 반환
                         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
                         resolve(dataUrl);
                     };
@@ -405,23 +374,17 @@
         window.handleFileSelect = async (event) => {
             const file = event.target.files[0];
             if (!file) return;
-
-            // 로딩 표시
             const label = document.getElementById('file-name-label');
             const originalText = label.innerText;
             label.innerText = "처리 중...";
-
             try {
-                // 용량이 크더라도 클라이언트 단에서 압축 진행
                 selectedImageData = await compressImage(file);
-                
                 document.getElementById('image-preview').src = selectedImageData;
                 document.getElementById('image-preview-container').classList.remove('hidden');
                 document.getElementById('file-name-label').innerText = file.name;
                 lucide.createIcons();
             } catch (err) {
-                console.error("Image processing error:", err);
-                alert("사진을 처리하는 중에 오류가 발생했어요.");
+                alert("사진 처리 실패");
                 label.innerText = originalText;
             }
         };
@@ -476,7 +439,7 @@
             if (theme === 'dark') root.classList.add('dark-mode');
             if (logo) logo.className = `text-2xl font-black tracking-tighter ${t.text}`;
             if (uploadIcon) uploadIcon.className = `p-2.5 ${t.icon} rounded-xl ${t.text}`;
-            if (uploadBtn) uploadBtn.className = `w-full ${t.btn} text-white py-5 rounded-2xl font-bold text-lg btn-active transition-all flex items-center justify-center gap-2`;
+            if (uploadBtn) uploadBtn.className = `w-full ${t.btn} text-white py-5 rounded-2xl font-bold text-lg btn-active transition-all flex items-center justify-center`;
             if (sendBtn) sendBtn.className = `p-5 ${t.btn} text-white rounded-2xl shadow-md btn-active`;
         }
 
@@ -484,7 +447,7 @@
             if (!auth.currentUser) return;
             onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'currentTheme'), (s) => {
                 if (s.exists()) applyTheme(s.data().name);
-            });
+            }, (err) => console.error(err));
         }
 
         window.uploadPost = async () => {
@@ -493,13 +456,10 @@
             const dateVal = document.getElementById('post-date').value;
             if (!caption.trim() && !selectedImageData) return;
 
-            // 버튼 로딩 상태 시작
             const btnText = document.getElementById('btn-text');
-            const btnSpinner = document.getElementById('btn-spinner');
             const uploadBtn = document.getElementById('upload-btn');
             
             btnText.innerText = "저장 중...";
-            btnSpinner.classList.remove('hidden');
             uploadBtn.disabled = true;
 
             const imgUrl = selectedImageData || 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=800';
@@ -515,12 +475,9 @@
                 document.getElementById('post-caption').value = '';
                 clearImageSelection();
             } catch (e) { 
-                console.error("Upload error:", e); 
-                alert("업로드에 실패했어요. 용량이 여전히 너무 큰지 확인해주세요.");
+                alert("업로드 실패");
             } finally {
-                // 버튼 상태 복구
                 btnText.innerText = "기억 업로드";
-                btnSpinner.classList.add('hidden');
                 uploadBtn.disabled = false;
             }
         };
@@ -544,7 +501,7 @@
             try {
                 await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', targetDeleteId));
                 closeDeleteModal();
-            } catch (e) { console.error("Delete error:", e); }
+            } catch (e) { console.error(e); }
         }
 
         window.toggleDeleteHint = (element) => {
@@ -565,9 +522,6 @@
                 if (!slider || !grid) return;
                 slider.innerHTML = ''; 
                 grid.innerHTML = '';
-                if (snapshot.empty) {
-                    slider.innerHTML = `<div class="min-w-full h-72 bg-gray-100 rounded-[2.5rem] flex items-center justify-center text-gray-500 text-sm text-center px-10">첫 번째 추억을 기록해 보세요!</div>`;
-                }
                 snapshot.forEach(snap => {
                     const p = snap.data();
                     const id = snap.id;
@@ -596,7 +550,7 @@
                     `;
                     grid.appendChild(card);
                 });
-            });
+            }, (err) => console.error(err));
         }
 
         window.sendMemo = async () => {
@@ -609,7 +563,7 @@
                     text, createdAt: serverTimestamp(), userId: auth.currentUser.uid
                 });
                 input.value = '';
-            } catch (e) { console.error("Memo error:", e); }
+            } catch (e) { console.error(e); }
         };
 
         function listenToMemos() {
@@ -628,7 +582,7 @@
                     board.appendChild(note);
                 });
                 board.scrollTo({ top: board.scrollHeight, behavior: 'smooth' });
-            });
+            }, (err) => console.error(err));
         }
 
         window.switchTab = (tab) => {
